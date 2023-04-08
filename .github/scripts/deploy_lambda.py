@@ -75,6 +75,15 @@ def create_or_update_layer(client, layer_name, layer_zip, runtime='python3.8'):
 
     return layer_arn
 
+def update_lambda_layers(client, function_name, layer_arns):
+    try:
+        response = client.update_function_configuration(
+            FunctionName=function_name,
+            Layers=layer_arns,
+        )
+    except Exception as e:
+        print(f"Error updating Lambda layers: {e}")
+
 def deploy_lambda(client, function_name, zip_name, role_arn, layer_arn=None, runtime='python3.8', region='ap-southeast-3'):
     if lambda_exists(client, function_name):
         print(f"Updating existing Lambda function: {function_name}")
