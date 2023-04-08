@@ -75,9 +75,7 @@ def create_or_update_layer(client, layer_name, layer_zip, runtime='python3.8'):
 
     return layer_arn
 
-def deploy_lambda(folder_name, zip_name, role_arn, runtime='python3.8', region='us-east-1'):
-    client = boto3.client('lambda', region_name=region)
-
+def deploy_lambda(client, folder_name, zip_name, role_arn, runtime='python3.8', region='us-east-1'):
     if lambda_exists(client, folder_name):
         print(f"Updating existing Lambda function: {folder_name}")
         update_lambda_code(client, folder_name, zip_name)
@@ -88,7 +86,7 @@ def deploy_lambda(folder_name, zip_name, role_arn, runtime='python3.8', region='
                 FunctionName=folder_name,
                 Runtime=runtime,
                 Role=role_arn,
-                Handler=f"{folder_name}.lambda_handler",
+                Handler="index.lambda_handler",
                 Code={'ZipFile': open(zip_name, 'rb').read()},
                 Publish=True,
             )
@@ -97,22 +95,28 @@ def deploy_lambda(folder_name, zip_name, role_arn, runtime='python3.8', region='
 
 if __name__ == "__main__":
     repo_name = os.environ['REPO_NAME']
+    client = boto3.client('lambda', region_name='ap-southeast-3')
     for folder_name in os.listdir():
         if os.path.isdir(folder_name) and not folder_name.startswith('.'):
+            print(f"Processing folder {folder_name}")
             role_arn = get_role_arn_from_file(folder_name)
             if role_arn:
+                print(f"Found role ARN for {folder_name}: {role_arn}")
                 lambda_name = f"{repo_name}_{folder_name}"
                 layer_name = f"{lambda_name}_layer"
 
                 layer_zip = create_layer_zip(folder_name)
                 if layer_zip:
-                    layer_arn = create_or_update_layer(boto3_client, layer_name, layer_zip, runtime='python3.8')
+                    print(f"Created layer zip for {folder_name}: {layer_zip}")
+                    layer_arn = create_or_update_layer(client, layer_name, layer_zip, runtime='python3.8')
                     os.remove(layer_zip)
                 else:
+                    print(f"No requirements.txt found for {folder_name}, skipping layer creation.")
                     layer_arn = None
 
                 zip_name = create_lambda_zip(folder_name)
-                deploy_lambda(lambda_name, zip_name, role_arn, layer_arn=layer_arn)
+                print(f"Created Lambda zip for {folder_name}: {zip_name}")
+                deploy_lambda(client, lambda_name, zip_name, role_arn, layer_arn=layer_arn)
                 os.remove(zip_name)
             else:
                 print(f"Skipping {folder_name}: No role ARN found in .gitaction_properties file.")
