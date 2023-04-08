@@ -75,23 +75,26 @@ def create_or_update_layer(client, layer_name, layer_zip, runtime='python3.8'):
 
     return layer_arn
 
-def deploy_lambda(client, folder_name, zip_name, role_arn, runtime='python3.8', region='us-east-1'):
-    if lambda_exists(client, folder_name):
-        print(f"Updating existing Lambda function: {folder_name}")
-        update_lambda_code(client, folder_name, zip_name)
+def deploy_lambda(client, function_name, zip_name, role_arn, layer_arn=None, runtime='python3.8', region='ap-southeast-3'):
+    if lambda_exists(client, function_name):
+        print(f"Updating existing Lambda function: {function_name}")
+        update_lambda_code(client, function_name, zip_name)
     else:
-        print(f"Creating new Lambda function: {folder_name}")
+        print(f"Creating new Lambda function: {function_name}")
         try:
             response = client.create_function(
-                FunctionName=folder_name,
+                FunctionName=function_name,
                 Runtime=runtime,
                 Role=role_arn,
-                Handler="index.lambda_handler",
+                Handler='index.handler',  # Hardcode handler to 'index.handler'
                 Code={'ZipFile': open(zip_name, 'rb').read()},
                 Publish=True,
             )
         except Exception as e:
             print(f"Error creating Lambda function: {e}")
+
+    if layer_arn:
+        update_lambda_layers(client, function_name, [layer_arn])
 
 if __name__ == "__main__":
     repo_name = os.environ['REPO_NAME']
