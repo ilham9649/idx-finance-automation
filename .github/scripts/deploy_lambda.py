@@ -62,7 +62,7 @@ def deploy_lambda(folder_name, zip_name, role_arn, runtime='python3.8', region='
 if __name__ == "__main__":
     repo_name = os.environ['REPO_NAME']
     for folder_name in os.listdir():
-        if os.path.isdir(folder_name) and folder_name != '.github':
+        if os.path.isdir(folder_name) and not folder_name.startswith('.'):
             role_arn = get_role_arn_from_file(folder_name)
             if role_arn:
                 lambda_name = f"{repo_name}_{folder_name}"
