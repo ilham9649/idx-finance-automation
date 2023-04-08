@@ -60,12 +60,14 @@ def deploy_lambda(folder_name, zip_name, role_arn, runtime='python3.8', region='
             print(f"Error creating Lambda function: {e}")
 
 if __name__ == "__main__":
+    repo_name = os.environ['REPO_NAME']
     for folder_name in os.listdir():
         if os.path.isdir(folder_name) and folder_name != '.github':
             role_arn = get_role_arn_from_file(folder_name)
             if role_arn:
+                lambda_name = f"{repo_name}_{folder_name}"
                 zip_name = create_lambda_zip(folder_name)
-                deploy_lambda(folder_name, zip_name, role_arn)
+                deploy_lambda(lambda_name, zip_name, role_arn)
                 os.remove(zip_name)
             else:
                 print(f"Skipping {folder_name}: No role ARN found in .gitaction_properties file.")
