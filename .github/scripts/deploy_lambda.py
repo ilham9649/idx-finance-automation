@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import subprocess
 import sys
+import hashlib
 
 def create_lambda_zip(folder_name):
     zip_name = f"{folder_name}.zip"
@@ -56,20 +57,42 @@ def create_layer_zip(folder_name):
             with zipfile.ZipFile(layer_zip, 'w') as zf:
                 for root, _, files in os.walk(python_dir):
                     for file in files:
-                        zf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), python_dir))
+                        zf.write(os.path.join(root, file), os.path.join('python', os.path.relpath(os.path.join(root, file), python_dir)))
         return layer_zip
     return None
 
-def create_or_update_layer(client, layer_name, layer_zip, runtime='python3.8'):
+def file_hash(file_path):
+    hasher = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        while chunk := f.read(8192):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+def create_or_update_layer(client, layer_name, layer_zip, folder_name, runtime='python3.8'):
     layer_arn = None
+    requirements_file = os.path.join(folder_name, "requirements.txt")
+    requirements_hash = file_hash(requirements_file)
+    
     try:
-        response = client.publish_layer_version(
-            LayerName=layer_name,
-            Description=f"Lambda layer for {layer_name}",
-            Content={'ZipFile': open(layer_zip, 'rb').read()},
-            CompatibleRuntimes=[runtime],
-        )
-        layer_arn = response['LayerVersionArn']
+        response = client.list_layer_versions(LayerName=layer_name, CompatibleRuntime=runtime)
+        layer_versions = response['LayerVersions']
+
+        for layer_version in layer_versions:
+            layer_description = layer_version['Description']
+            if layer_description == requirements_hash:
+                layer_arn = layer_version['LayerVersionArn']
+                print(f"Reusing existing Lambda layer {layer_name} with version {layer_version['Version']}")
+                break
+
+        if not layer_arn:
+            response = client.publish_layer_version(
+                LayerName=layer_name,
+                Description=requirements_hash,
+                Content={'ZipFile': open(layer_zip, 'rb').read()},
+                CompatibleRuntimes=[runtime],
+            )
+            layer_arn = response['LayerVersionArn']
+            print(f"Created new Lambda layer {layer_name} with version {response['Version']}")
     except Exception as e:
         print(f"Error creating Lambda layer: {e}")
 
