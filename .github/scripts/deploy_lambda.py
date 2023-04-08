@@ -1,6 +1,10 @@
 import os
 import boto3
 import zipfile
+import shutil
+import tempfile
+import subprocess
+import sys
 
 def create_lambda_zip(folder_name):
     zip_name = f"{folder_name}.zip"
