@@ -23,7 +23,7 @@ jobs:
         pip install boto3
 
     - name: Deploy Lambda functions
-      run: python .pipeline/deploy_lambda.py
+      run: python .github/scripts/deploy_lambda.py
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
