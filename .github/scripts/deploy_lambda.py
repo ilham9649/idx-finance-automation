@@ -118,7 +118,7 @@ def deploy_lambda(client, function_name, zip_name, role_arn, layer_arn=None, run
                 FunctionName=function_name,
                 Runtime=runtime,
                 Role=role_arn,
-                Handler='index.handler',  # Hardcode handler to 'index.handler'
+                Handler='main.lambda_handler',  
                 Code={'ZipFile': open(zip_name, 'rb').read()},
                 Publish=True,
             )
@@ -143,7 +143,7 @@ if __name__ == "__main__":
                 layer_zip = create_layer_zip(folder_name)
                 if layer_zip:
                     print(f"Created layer zip for {folder_name}: {layer_zip}")
-                    layer_arn = create_or_update_layer(client, layer_name, layer_zip, runtime='python3.8')
+                    layer_arn = create_or_update_layer(client, layer_name, layer_zip, folder_name, runtime='python3.8')
                     os.remove(layer_zip)
                 else:
                     print(f"No requirements.txt found for {folder_name}, skipping layer creation.")
