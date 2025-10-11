@@ -1,50 +1,35 @@
 import json
-from selenium.common.exceptions import NoSuchElementException
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-import os
-import shutil
+import urllib.request
+from typing import Any, Dict, List, Optional
 
-link = f"https://idx.co.id/primary/ListedCompany/GetCompanyProfiles?emitenType=s&start=0&length=9999"
+LINK = "https://idx.co.id/primary/ListedCompany/GetCompanyProfiles?emitenType=s&start=0&length=9999"
 
-BIN_DIR = "/tmp/bin"
-CURR_BIN_DIR = os.getcwd()
+# Use browser-like headers to avoid being blocked by basic bot protection
+HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36",
+    "Referer": "https://idx.co.id/",
+}
 
-def _init_bin(executable_name):
-    if not os.path.exists(BIN_DIR):
-        print("Creating bin folder")
-        os.makedirs(BIN_DIR)
-    print("Copying binaries for " + executable_name + " in /tmp/bin")
-    currfile = os.path.join(CURR_BIN_DIR, executable_name)
-    newfile = os.path.join(BIN_DIR, executable_name)
-    shutil.copy2(currfile, newfile)
-    print("Giving new binaries permissions for lambda")
-    os.chmod(newfile, 0o775)
+def fetch_company_profiles() -> Dict[str, Any]:
+    request = urllib.request.Request(LINK, headers=HEADERS, method="GET")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw = response.read()
+    return json.loads(raw.decode("utf-8"))
 
-def handler(event, context):
-	_init_bin("chromedriver")
-	
-	chrome_options = webdriver.ChromeOptions()
-	chrome_options.add_argument('--headless')
-	chrome_options.add_argument('--disable-gpu')
-	chrome_options.add_argument('--window-size=1280x1696')
-	chrome_options.add_argument('--no-sandbox')
-	chrome_options.add_argument('--hide-scrollbars')
-	chrome_options.add_argument('--enable-logging')
-	chrome_options.add_argument('--log-level=0')
-	chrome_options.add_argument('--v=99')
-	chrome_options.add_argument('--single-process')
-	chrome_options.add_argument('--ignore-certificate-errors')
-	chrome_options.binary_location = "/tmp/bin/headless-chromium"
-	http = webdriver.Chrome("/tmp/bin/chromedriver", chrome_options=chrome_options)
-	http.get(link)
+def get_stock_codes(suffix: str = ".JK") -> List[str]:
+    payload = fetch_company_profiles()
+    companies = payload.get("data", [])
+    stock_codes: List[str] = []
+    for company in companies:
+        code = company.get("KodeEmiten")
+        if not code:
+            continue
+        stock_codes.append(f"{code}{suffix}")
+    return stock_codes
 
-	try:
-		result = http.find_element(By.CSS_SELECTOR, "pre").text
-		result = json.loads(result)
-	except:
-		print("Unknown error")
+def handler(event: Optional[Dict[str, Any]] = None, context: Any = None) -> List[str]:
+    return get_stock_codes()
 
-	stock_code = []
-	for data in result["data"]:
-	    stock_code.append(data["KodeEmiten"] + ".JK")
+if __name__ == "__main__":
+    print(json.dumps(get_stock_codes(), ensure_ascii=False))
