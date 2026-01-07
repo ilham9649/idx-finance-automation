@@ -1,50 +1,56 @@
+"""Fetch listed companies from IDX and print basic data.
+
+This script replaces the previous Selenium-based approach with a simple
+HTTP request to the public endpoint and prints each company's JSON on a
+separate line. It's lightweight and doesn't require a browser binary.
+"""
+
 import json
-from selenium.common.exceptions import NoSuchElementException
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-import os
-import shutil
+import sys
+from typing import List, Dict
+from urllib.request import urlopen, Request
 
-link = f"https://idx.co.id/primary/ListedCompany/GetCompanyProfiles?emitenType=s&start=0&length=9999"
+LINK = "https://idx.co.id/primary/ListedCompany/GetCompanyProfiles?emitenType=s&start=0&length=9999"
 
-BIN_DIR = "/tmp/bin"
-CURR_BIN_DIR = os.getcwd()
 
-def _init_bin(executable_name):
-    if not os.path.exists(BIN_DIR):
-        print("Creating bin folder")
-        os.makedirs(BIN_DIR)
-    print("Copying binaries for " + executable_name + " in /tmp/bin")
-    currfile = os.path.join(CURR_BIN_DIR, executable_name)
-    newfile = os.path.join(BIN_DIR, executable_name)
-    shutil.copy2(currfile, newfile)
-    print("Giving new binaries permissions for lambda")
-    os.chmod(newfile, 0o775)
-
-def handler(event, context):
-	_init_bin("chromedriver")
-	
-	chrome_options = webdriver.ChromeOptions()
-	chrome_options.add_argument('--headless')
-	chrome_options.add_argument('--disable-gpu')
-	chrome_options.add_argument('--window-size=1280x1696')
-	chrome_options.add_argument('--no-sandbox')
-	chrome_options.add_argument('--hide-scrollbars')
-	chrome_options.add_argument('--enable-logging')
-	chrome_options.add_argument('--log-level=0')
-	chrome_options.add_argument('--v=99')
-	chrome_options.add_argument('--single-process')
-	chrome_options.add_argument('--ignore-certificate-errors')
-	chrome_options.binary_location = "/tmp/bin/headless-chromium"
-	http = webdriver.Chrome("/tmp/bin/chromedriver", chrome_options=chrome_options)
-	http.get(link)
+def fetch_companies() -> List[Dict]:
+	try:
+		headers = {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+			"Accept": "application/json, text/javascript, */*; q=0.01",
+			"Accept-Language": "en-US,en;q=0.9",
+			"X-Requested-With": "XMLHttpRequest",
+			"Referer": "https://idx.co.id/",
+			"Origin": "https://idx.co.id",
+		}
+		req = Request(LINK, headers=headers)
+		with urlopen(req, timeout=15) as resp:
+			raw = resp.read()
+			text = raw.decode("utf-8", errors="replace")
+	except Exception as e:
+		print(f"Failed to fetch data: {e}", file=sys.stderr)
+		return []
 
 	try:
-		result = http.find_element(By.CSS_SELECTOR, "pre").text
-		result = json.loads(result)
-	except:
-		print("Unknown error")
+		data = json.loads(text)
+	except Exception as e:
+		print(f"Failed to parse JSON: {e}", file=sys.stderr)
+		return []
 
-	stock_code = []
-	for data in result["data"]:
-	    stock_code.append(data["KodeEmiten"] + ".JK")
+	return data.get("data", []) if isinstance(data, dict) else []
+
+
+def main():
+	companies = fetch_companies()
+	print(f"Found {len(companies)} companies")
+	for c in companies:
+		# show code with .JK suffix and the full JSON for flexibility
+		code = c.get("KodeEmiten")
+		if code:
+			print(code + ".JK", json.dumps(c, ensure_ascii=False))
+		else:
+			print(json.dumps(c, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+	main()
