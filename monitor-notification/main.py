@@ -49,7 +49,14 @@ def main():
 
     # Initialize clients
     stockbit = StockbitClient(config.STOCKBIT_TOKEN)
+
+    # Initialize classifier
+    print(f"\n🤖 Using z.chat API classifier (GLM-4-Plus)")
+    if not config.ZCHAT_API_KEY:
+        print("ERROR: ZCHAT_API_KEY not configured in .env file")
+        return
     classifier = ZChatClassifier(config.ZCHAT_API_KEY)
+
     sheets = SheetsClient(config.GOOGLE_CREDENTIALS, config.SPREADSHEET_ID)
     telegram = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
 
@@ -71,36 +78,35 @@ def main():
         print("\n✓ No new reports in last hour")
         return
 
-    # Classify each report
-    print("\n🤖 Classifying reports with z.chat...")
-    classified_reports = []
+    # Classify reports
+    print("\n🤖 Classifying reports...")
 
-    for i, report in enumerate(recent_reports, 1):
-        try:
-            classification = classifier.classify(
-                title=report['title'],
-                report_type=report['report_type'],
-                topics=report.get('stock', '').split(', ')
-            )
+    # Prepare reports for classification
+    reports_to_classify = [
+        {
+            'title': r['title'],
+            'report_type': r['report_type'],
+            'stock': r.get('stock', ''),
+            'stream_id': r['stream_id'],
+            'timestamp': r['timestamp'],
+            'url': r.get('url', '')
+        }
+        for r in recent_reports
+    ]
 
-            classified_report = {
-                **report,
-                **classification
-            }
-            classified_reports.append(classified_report)
+    # Classify (uses batch mode for z.chat, direct for rule-based)
+    classified_reports = classifier.classify_batch(reports_to_classify, batch_size=5)
 
-            print(f"   [{i}/{len(recent_reports)}] {report['stock']} - {classification['impact']} / {classification['sentiment']}")
+    # Show summary
+    impact_counts = {}
+    sentiment_counts = {}
+    for r in classified_reports:
+        impact_counts[r['impact']] = impact_counts.get(r['impact'], 0) + 1
+        sentiment_counts[r['sentiment']] = sentiment_counts.get(r['sentiment'], 0) + 1
 
-        except Exception as e:
-            print(f"   [{i}/{len(recent_reports)}] ERROR: {e}")
-            # Add default classification
-            classified_reports.append({
-                **report,
-                'impact': 'medium',
-                'sentiment': 'neutral',
-                'reasoning': f'Classification failed: {str(e)}',
-                'keywords': []
-            })
+    print(f"   ✓ Classified {len(classified_reports)} reports")
+    print(f"   Impact: {impact_counts}")
+    print(f"   Sentiment: {sentiment_counts}")
 
     # Store in Google Sheets
     print("\n💾 Storing reports in Google Sheets...")

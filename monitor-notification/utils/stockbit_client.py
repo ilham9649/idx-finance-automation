@@ -1,4 +1,6 @@
-import requests
+import urllib.request
+import urllib.error
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict
 
@@ -9,30 +11,40 @@ class StockbitClient:
     def __init__(self, bearer_token):
         self.bearer_token = bearer_token
 
-    def fetch_reports(self, limit=50):
-        """Fetch latest reports"""
-        params = {
-            'category': 'STREAM_CATEGORY_REPORTS',
-            'last_stream_id': 0,
-            'limit': limit,
-            'report_type': 'REPORT_TYPE_ALL'
-        }
+    def fetch_reports(self, limit=20):
+        """Fetch latest reports using urllib (standard library)"""
+        params = f"?category=STREAM_CATEGORY_REPORTS&last_stream_id=0&limit={limit}&report_type=REPORT_TYPE_ALL"
+        full_url = self.API_URL + params
 
         headers = {
-            'Authorization': f'Bearer {self.bearer_token}'
+            'Authorization': f'Bearer {self.bearer_token}',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Origin': 'https://stockbit.com',
+            'Referer': 'https://stockbit.com/'
         }
 
-        response = requests.get(
-            self.API_URL,
-            headers=headers,
-            params=params,
-            timeout=15
-        )
+        req = urllib.request.Request(full_url, headers=headers)
 
-        response.raise_for_status()
-        data = response.json()
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                print(f"   Status Code: {response.status}")
 
-        return data.get('data', {}).get('stream', [])
+                return data.get('data', {}).get('stream', [])
+
+        except urllib.error.HTTPError as e:
+            print(f"   HTTP Error: {e.code}")
+            try:
+                error_body = e.read().decode('utf-8')
+                print(f"   Response body: {error_body[:500]}")
+            except:
+                pass
+            raise Exception(f"HTTP {e.code}: {error_body if 'error_body' in locals() else 'Unknown error'}")
+        except urllib.error.URLError as e:
+            if isinstance(e.reason, timeout):
+                raise Exception("Request timed out. Please check your internet connection.")
+            raise Exception(f"URL Error: {e.reason}")
 
     def filter_last_hour(self, reports: List[Dict]) -> List[Dict]:
         """Filter reports from last 1 hour"""
