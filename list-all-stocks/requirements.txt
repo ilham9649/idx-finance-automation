@@ -1,4 +1,0 @@
-json5==0.9.6
-selenium==4.8.2
-
-requests==2.31.0
