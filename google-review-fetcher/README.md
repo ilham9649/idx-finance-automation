@@ -25,40 +25,57 @@ Fetch ALL Google Place reviews (not just 5) using SerpApi and save to CSV.
 ## Usage
 
 ```bash
-python fetch_reviews_serpapi.py
+python fetch_reviews.py
 ```
 
 Enter:
-- Place ID, Google Maps URL, or place name
+- Google Maps URL, Place ID, or place name
 - Start date (YYYY-MM-DD, optional)
 - End date (YYYY-MM-DD, optional)
 - Max pages to fetch (optional, no limit by default)
 
-## Finding Place IDs
+## Input Methods
 
-1. Search for place on Google Maps
-2. Click "Share" > "Copy link"
-3. The script will auto-extract Place ID from URL
-4. Or use SerpApi search: `https://serpapi.com/search?engine=google_maps&q=Place+Name&api_key=YOUR_KEY`
+1. **Google Maps URL** - Extracts CID (data_id) automatically
+   - Most accurate - gets exact place from URL
+   - No additional API calls needed
+   - Works with: `google.com/maps/place/...` URLs
+
+2. **Place ID** - Direct SerpApi place_id
+   - Format: `ChIJlaZhyIAWei4R9jMN_ZJEBbI`
+
+3. **Place Name** - Searches and gets first result
+   - Less accurate if multiple locations exist
+   - Use only if URL or Place ID not available
 
 ## Features
 
 - **Fetch ALL reviews** (not limited to 5)
+- **Uses CID directly** - more accurate than place name search
+- **Incremental saving** - saves to CSV after each page (won't lose data if script fails)
+- **Retry logic** - automatically retries failed requests (3 attempts with exponential backoff)
+- **Rate limiting protection** - adds delays between requests
 - Pagination support (up to 20 reviews per page)
 - Date range filtering
-- Multiple input methods (Place ID, URL, or search)
 - Sort by: newestFirst, ratingHigh, ratingLow, qualityScore
-- Complete CSV with 62+ fields
+- Complete CSV with 58+ fields
 
 ## Output
 
 Reviews saved to `reviews.csv` with all available fields:
-- Basic: review_id, author_title, author_id, rating, review_text
-- Dates: review_timestamp, review_datetime_utc, year, month_year
-- Author: author_link, author_image, author_reviews_count
-- Images: review_img_url, review_img_urls
-- Responses: owner_answer, owner_answer_timestamp
-- And 40+ more fields (N/A if not available)
+- **Incremental saves**: Each page is saved immediately (page 1, 2, 3...)
+- **Basic**: review_id, author_title, author_id, rating, review_text
+- **Dates**: review_timestamp, review_datetime_utc, year, month_year
+- **Author**: author_link, author_image, author_reviews_count
+- **Images**: review_img_url, review_img_urls
+- **Responses**: owner_answer, owner_answer_timestamp
+- And 40+ more fields (empty if not available)
+
+## Error Handling
+
+- **Connection errors**: Auto-retries up to 3 times with exponential backoff (2s, 4s, 6s)
+- **Connection reset by peer**: Automatically retried
+- **Data safety**: Reviews are saved incrementally, so you won't lose data even if the script fails
 
 ## API Pricing
 
@@ -69,7 +86,10 @@ Reviews saved to `reviews.csv` with all available fields:
 
 ## Notes
 
+- **Google Maps URL is most accurate** - uses exact place ID from URL
 - Initial page returns 8 reviews
 - Subsequent pages return up to 20 reviews
 - Use `max_pages` to limit API usage
 - Filter by date to save credits
+- Only SERPAPI_KEY required (no Google Places API needed)
+- Reviews are saved after **each page** (not at the end) for data safety
