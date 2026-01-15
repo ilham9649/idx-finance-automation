@@ -15,18 +15,33 @@ class SerpApiReviewFetcher:
     
     def extract_place_id_from_url(self, url: str) -> Optional[str]:
         """Extract place_id from Google Maps URL"""
-        match = re.search(r'!1s([^!]+)', url)
+        # Add https://www. if missing
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://www.' + url
+        
+        # Extract CID (format: 0x[hex]:0x[hex])
+        match = re.search(r'!1s(0x[0-9a-f]+:0x[0-9a-f]+)', url)
         if match:
             cid = match.group(1)
             print(f"Extracted CID: {cid}")
             result = self.get_place_id_from_cid(cid)
             if not result:
-                # If CID conversion fails, try extracting place name from URL
-                name_match = re.search(r'/place/([^/@]+)', url)
-                if name_match:
-                    place_name = name_match.group(1).replace('+', ' ')
-                    print(f"Searching by place name instead: {place_name}")
-                    result = self.get_place_id_from_name(place_name)
+                # If CID conversion fails, try extracting search query from URL
+                query_match = re.search(r'!1s([^:]+)', url)
+                if query_match:
+                    query = query_match.group(1)
+                    if not query.startswith('0x'):
+                        # This is a search query, not a CID
+                        query = query.replace('+', ' ')
+                        print(f"Searching by query: {query}")
+                        result = self.get_place_id_from_name(query)
+                else:
+                    # Fallback to place name from URL
+                    name_match = re.search(r'/place/([^/@]+)', url)
+                    if name_match:
+                        place_name = name_match.group(1).replace('+', ' ')
+                        print(f"Searching by place name instead: {place_name}")
+                        result = self.get_place_id_from_name(place_name)
             return result
         
         # Try to extract from /g/ format
@@ -83,7 +98,7 @@ class SerpApiReviewFetcher:
         return None
     
     def fetch_reviews_page(self, place_id: str, next_page_token: Optional[str] = None, num: int = 20) -> Dict:
-        """Fetch a single page of reviews"""
+        """Fetch a single page of reviews by place_id"""
         params = {
             "engine": "google_maps_reviews",
             "place_id": place_id,
@@ -98,7 +113,23 @@ class SerpApiReviewFetcher:
         response.raise_for_status()
         return response.json()
     
-    def fetch_all_reviews(self, place_id: str, sort_by: str = "newestFirst", max_pages: Optional[int] = None) -> List[Dict]:
+    def fetch_reviews_page_by_data_id(self, data_id: str, next_page_token: Optional[str] = None, num: int = 20) -> Dict:
+        """Fetch a single page of reviews by data_id (CID)"""
+        params = {
+            "engine": "google_maps_reviews",
+            "data_id": data_id,
+            "api_key": self.api_key
+        }
+        
+        if next_page_token:
+            params["next_page_token"] = next_page_token
+            params["num"] = str(num)
+        
+        response = requests.get(self.base_url, params=params)
+        response.raise_for_status()
+        return response.json()
+    
+    def fetch_all_reviews(self, place_id: str = None, data_id: str = None, sort_by: str = "newestFirst", max_pages: Optional[int] = None) -> List[Dict]:
         """Fetch all reviews with pagination"""
         all_reviews = []
         next_page_token = None
