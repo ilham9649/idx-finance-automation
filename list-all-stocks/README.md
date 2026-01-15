@@ -1,22 +1,29 @@
-++---
 # list-all-stocks
 
-Simple script to fetch listed companies from IDX using their public endpoint.
+Simple Python script to fetch listed companies from Indonesia Stock Exchange (IDX) using their public API endpoint.
 
-Usage
+## Usage
 
-1. Install dependencies:
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-2. Run the script:
+Run the script directly:
 
 ```bash
 python3 main.py
 ```
 
-The script prints one line per company: the IDX code with `.JK` suffix followed by the company's JSON.
+## Output
 
-If you prefer the previous Selenium approach, ensure `chromedriver` and a headless chromium binary are available and update the old code accordingly.
+The script prints one line per company: the IDX ticker symbol with `.JK` suffix followed by the company's JSON data.
+
+Example output:
+```
+Found 700 companies
+BBCA.JK {"KodeEmiten":"BBCA","NamaEmiten":"Bank Central Asia Tbk",...}
+TLKM.JK {"KodeEmiten":"TLKM","NamaEmiten":"Telkom Indonesia (Persero) Tbk",...}
+...
+```
+
+## Requirements
+
+Python 3.6+ (uses only standard library: `json`, `sys`, `urllib.request`)
+
+No external dependencies required.
